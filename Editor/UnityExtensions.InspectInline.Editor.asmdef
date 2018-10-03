@@ -1,0 +1,12 @@
+{
+    "name": "UnityExtensions.InspectInline.Editor",
+    "references": [
+        "UnityExtensions.InspectInline"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false
+}
