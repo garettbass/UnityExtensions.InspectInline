@@ -112,6 +112,8 @@ namespace UnityExtensions
                     DoInlineEditorGUI(inlineEditorRect, inlineEditor);
                 }
             }
+
+            EvictObsoleteInlineEditorsOnNextEditorUpdate();
         }
 
         //----------------------------------------------------------------------
@@ -288,7 +290,7 @@ namespace UnityExtensions
 
         //----------------------------------------------------------------------
 
-        private class InlineEditor
+        private class InlineEditor : IDisposable
         {
 
             private static readonly Type
@@ -317,6 +319,13 @@ namespace UnityExtensions
                         ref editor);
                 }
                 m_editor = editor;
+            }
+
+            public void Dispose()
+            {
+                Debug.Log("disposed");
+                if (m_editor != null)
+                    Object.DestroyImmediate(m_editor);
             }
 
             public float GetHeight()
@@ -378,6 +387,26 @@ namespace UnityExtensions
             inlineEditor = new InlineEditor(editor);
             m_inlineEditorMap.Add(target, inlineEditor);
             return inlineEditor;
+        }
+
+        private void EvictObsoleteInlineEditors()
+        {
+            var map = m_inlineEditorMap;
+            var destroyedObjects = map.Keys.Where(key => key == null);
+            if (destroyedObjects.Any())
+            {
+                foreach (var @object in destroyedObjects.ToArray())
+                {
+                    map[@object].Dispose();
+                    map.Remove(@object);
+                }
+            }
+        }
+
+        private void EvictObsoleteInlineEditorsOnNextEditorUpdate()
+        {
+            EditorApplication.delayCall -= EvictObsoleteInlineEditors;
+            EditorApplication.delayCall += EvictObsoleteInlineEditors;
         }
 
         //----------------------------------------------------------------------
