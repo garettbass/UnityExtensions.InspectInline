@@ -11,10 +11,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 027ab74d86dd649a5a68bc2de1ba19cf, type: 3}
   m_Name: SampleAsset
   m_EditorClassIdentifier: 
-  remoteTarget: {fileID: 11400000, guid: 0beaf96e5eb3b45b7855a38275a1f4a1, type: 2}
-  concreteSubasset: {fileID: 114968574243035906}
-  polymorphicSubasset: {fileID: 114593145784327134}
---- !u!114 &114189293716558018
+  remoteTarget: {fileID: 11400000, guid: d8f1fa1fbba2a40aaa412e07b117679e, type: 2}
+  concreteSubasset: {fileID: 114931104256653876}
+  polymorphicSubasset: {fileID: 114898509990034348}
+  anyScriptableObject: {fileID: 114533621233159552}
+--- !u!114 &114533621233159552
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
@@ -22,26 +23,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 027ab74d86dd649a5a68bc2de1ba19cf, type: 3}
-  m_Name: Nested Asset
-  m_EditorClassIdentifier: 
-  remoteTarget: {fileID: 0}
-  concreteSubasset: {fileID: 0}
-  polymorphicSubasset: {fileID: 0}
---- !u!114 &114513192955122000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4129ff4176dce45a6a1748c2512a1876, type: 3}
-  m_Name: SampleSubassetWithVectorAndColorValues
-  m_EditorClassIdentifier: 
-  vector3Value: {x: 0, y: 0, z: 0}
-  colorValue: {r: 0, g: 0, b: 0, a: 0}
---- !u!114 &114593145784327134
+  m_Script: {fileID: 0}
+  m_Name: Any Scriptable Object
+  m_EditorClassIdentifier: UnityEditor:UnityEditorInternal:SpriteEditorMenuSetting
+  gridCellCount: {x: 1, y: 1}
+  gridSpriteSize: {x: 64, y: 64}
+  gridSpriteOffset: {x: 0, y: 0}
+  gridSpritePadding: {x: 0, y: 0}
+  pivot: {x: 0, y: 0}
+  autoSlicingMethod: 0
+  spriteAlignment: 0
+  slicingType: 0
+--- !u!114 &114898509990034348
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
@@ -54,7 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   vector3Value: {x: 0, y: 0, z: 0}
   colorValue: {r: 0, g: 0, b: 0, a: 0}
---- !u!114 &114903802404488878
+--- !u!114 &114931104256653876
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
@@ -62,22 +55,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 027ab74d86dd649a5a68bc2de1ba19cf, type: 3}
-  m_Name: Nested Asset
-  m_EditorClassIdentifier: 
-  remoteTarget: {fileID: 0}
-  concreteSubasset: {fileID: 0}
-  polymorphicSubasset: {fileID: 0}
---- !u!114 &114968574243035906
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4129ff4176dce45a6a1748c2512a1876, type: 3}
+  m_Script: {fileID: 11500000, guid: f62a34508e7f845a3aa4c53569c1eed4, type: 3}
   m_Name: Concrete Subasset
   m_EditorClassIdentifier: 
-  vector3Value: {x: 0, y: 0, z: 0}
-  colorValue: {r: 0, g: 0, b: 0, a: 0}
+  doubleValue: 0

@@ -13,10 +13,13 @@ namespace UnityExtensions.InspectInlineExamples
         public SampleSubasset remoteTarget;
 
         [InspectInline(targetIsSubasset = true)]
-        public SampleSubassetWithVectorAndColorValues concreteSubasset;
+        public SampleSubassetWithDoubleValue concreteSubasset;
 
         [InspectInline(targetIsSubasset = true)]
         public SampleSubasset polymorphicSubasset;
+
+        [InspectInline(targetIsSubasset = true)]
+        public ScriptableObject anyScriptableObject;
 
     }
 

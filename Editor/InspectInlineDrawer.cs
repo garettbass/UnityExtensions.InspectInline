@@ -223,11 +223,16 @@ namespace UnityExtensions
             menu.AddSeparator("");
 
             var typeIndex = 0;
+            var useTypeFullName = types.Length > 16;
             foreach (var type in types)
             {
+                var menuPath =
+                    useTypeFullName
+                    ? type.FullName.Replace('.','/')
+                    : type.Name;
                 var menuTypeIndex = typeIndex++;
                 menu.AddItem(
-                    new GUIContent(type.Name),
+                    new GUIContent(menuPath),
                     on: false,
                     func: () =>
                         AddSubasset(property, types, menuTypeIndex));
@@ -377,6 +382,20 @@ namespace UnityExtensions
 
         //----------------------------------------------------------------------
 
+        private static bool CanAddSubasset(Object obj)
+        {
+            var hideFlags = obj.hideFlags;
+            var dontSaveInBuild = HideFlags.DontSaveInBuild;
+            if ((hideFlags & dontSaveInBuild) == dontSaveInBuild)
+                return false;
+
+            var dontSaveInEditor = HideFlags.DontSaveInEditor;
+            if ((hideFlags & dontSaveInEditor) == dontSaveInEditor)
+                return false;
+
+            return true;
+        }
+
         private void AddSubasset(
             SerializedProperty property,
             Type[] types,
@@ -402,6 +421,15 @@ namespace UnityExtensions
                 Debug.LogErrorFormat(
                     "Failed to create subasset of type {0}",
                     type.FullName);
+                return;
+            }
+
+            if (!CanAddSubasset(subasset))
+            {
+                Debug.LogErrorFormat(
+                    "Cannot save subasset of type {0}",
+                    type.FullName);
+                Object.DestroyImmediate(subasset);
                 return;
             }
 
