@@ -15,6 +15,10 @@ namespace UnityExtensions.InspectInlineExamples
 
         public Color colorValue;
 
+        public Vector3[] vector3Array;
+
+        public Color[] colorArray;
+
     }
 
 }

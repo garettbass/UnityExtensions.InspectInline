@@ -312,7 +312,7 @@ namespace UnityExtensions
                 if (editorType == GenericInspector)
                 {
                     var target = editor.target;
-                    Object.DestroyImmediate(editor);
+                    TryDestroyImmediate(editor);
                     Editor.CreateCachedEditor(
                         target,
                         typeof(NoScriptPropertyEditor),
@@ -324,8 +324,7 @@ namespace UnityExtensions
             public void Dispose()
             {
                 Debug.Log("disposed");
-                if (m_editor != null)
-                    Object.DestroyImmediate(m_editor);
+                TryDestroyImmediate(m_editor);
             }
 
             public float GetHeight()
@@ -458,7 +457,7 @@ namespace UnityExtensions
                 Debug.LogErrorFormat(
                     "Cannot save subasset of type {0}",
                     type.FullName);
-                Object.DestroyImmediate(subasset);
+                TryDestroyImmediate(subasset);
                 return;
             }
 
@@ -480,10 +479,25 @@ namespace UnityExtensions
             if (subasset != null)
             {
                 property.objectReferenceValue = null;
-                Object.DestroyImmediate(subasset, allowDestroyingAssets: true);
+                TryDestroyImmediate(subasset, allowDestroyingAssets: true);
                 // TODO: recursively destroy subassets
             }
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void TryDestroyImmediate(
+            Object obj,
+            bool allowDestroyingAssets = false)
+        {
+            try
+            {
+                if (obj != null)
+                    Object.DestroyImmediate(obj, allowDestroyingAssets);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
         }
 
     }
