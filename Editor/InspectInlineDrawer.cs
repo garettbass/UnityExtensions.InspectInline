@@ -371,6 +371,7 @@ namespace UnityExtensions
                     var shadowRect = rectAfter;
                     shadowRect.xMin += 2;
                     shadowRect.xMax -= 2;
+                    shadowRect.y += 1;
                     EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
                     shadowRect.y += 1;
                     EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
