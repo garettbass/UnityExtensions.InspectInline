@@ -507,12 +507,19 @@ namespace UnityExtensions
         private void RemoveSubasset(SerializedProperty property)
         {
             var serializedObject = property.serializedObject;
+            var asset = serializedObject.targetObject;
             var subasset = property.objectReferenceValue;
             if (subasset != null)
             {
                 property.objectReferenceValue = null;
-                TryDestroyImmediate(subasset, allowDestroyingAssets: true);
-                // TODO: recursively destroy subassets
+                var assetPath = AssetDatabase.GetAssetPath(asset);
+                var subassetPath = AssetDatabase.GetAssetPath(subasset);
+                var isSubasset = subassetPath == assetPath;
+                if (isSubasset)
+                {
+                    TryDestroyImmediate(subasset, allowDestroyingAssets: true);
+                    // TODO: recursively destroy subassets
+                }
             }
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
