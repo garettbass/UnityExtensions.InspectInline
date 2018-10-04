@@ -119,14 +119,34 @@ namespace UnityExtensions
         //----------------------------------------------------------------------
 
         private void DoObjectFieldGUI(
-            Rect propertyRect,
+            Rect position,
             SerializedProperty property,
             GUIContent label)
         {
             EditorGUI.BeginChangeCheck();
-            EditorGUI.ObjectField(propertyRect, property, label);
+            label = EditorGUI.BeginProperty(position, label, property);
+
+            var objectBeingEdited = property.serializedObject.targetObject;
+            var allowSceneObjects =
+                objectBeingEdited != null &&
+                !EditorUtility.IsPersistent(objectBeingEdited);
+
+            var objectType = fieldInfo.FieldType;
+            var oldObject = property.objectReferenceValue;
+            var newObject =
+                EditorGUI.ObjectField(
+                    position,
+                    oldObject,
+                    objectType,
+                    allowSceneObjects);
+
+            if (attribute.targetIsSubasset)
+                newObject = oldObject;
+
+            EditorGUI.EndProperty();
             if (EditorGUI.EndChangeCheck())
             {
+                property.objectReferenceValue = newObject;
                 property.isExpanded = true;
             }
         }
