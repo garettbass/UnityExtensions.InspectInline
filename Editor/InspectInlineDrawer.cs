@@ -364,6 +364,7 @@ namespace UnityExtensions
                     m_editor.OnInspectorGUI();
 
                     var rectAfter = GUILayoutUtility.GetRect(0, 1);
+                    GUILayoutUtility.GetRect(0, -1);
 
                     m_height = rectAfter.yMax - rectBefore.yMin;
 
@@ -371,7 +372,6 @@ namespace UnityExtensions
                     var shadowRect = rectAfter;
                     shadowRect.xMin += 2;
                     shadowRect.xMax -= 2;
-                    shadowRect.y += 1;
                     EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
                     shadowRect.y += 1;
                     EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
