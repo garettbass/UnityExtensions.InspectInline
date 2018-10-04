@@ -136,6 +136,7 @@ namespace UnityExtensions
             var newObject =
                 EditorGUI.ObjectField(
                     position,
+                    label,
                     oldObject,
                     objectType,
                     allowSceneObjects);
@@ -320,7 +321,7 @@ namespace UnityExtensions
                 .GetType("UnityEditor.GenericInspector");
 
             private readonly GUIStyle
-            tlSelectionButton = new GUIStyle("TL SelectionButton");
+            inlineBackgroundStyle = new GUIStyle("TL SelectionButton");
 
             private readonly Editor m_editor;
 
@@ -356,7 +357,7 @@ namespace UnityExtensions
             {
                 try
                 {
-                    EditorGUILayout.BeginVertical(tlSelectionButton);
+                    EditorGUILayout.BeginVertical(inlineBackgroundStyle);
                     EditorGUI.indentLevel += 1;
 
                     var rectBefore = GUILayoutUtility.GetRect(0, 2);
@@ -367,6 +368,18 @@ namespace UnityExtensions
                     GUILayoutUtility.GetRect(0, -1);
 
                     m_height = rectAfter.yMax - rectBefore.yMin;
+
+                    // increase the contrast of the bottom edge background
+                    var shadowRect = rectAfter;
+                    shadowRect.xMin += 2;
+                    shadowRect.xMax -= 2;
+                    EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
+                    shadowRect.y += 1;
+                    EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
+                    shadowRect.xMin += 1;
+                    shadowRect.xMax -= 1;
+                    shadowRect.y += 1;
+                    EditorGUI.DrawRect(shadowRect, new Color(1, 1, 1, 0.025f));
                 }
                 catch (Exception ex)
                 {
