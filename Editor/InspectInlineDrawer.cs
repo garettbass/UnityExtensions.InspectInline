@@ -344,7 +344,6 @@ namespace UnityExtensions
 
             public void Dispose()
             {
-                Debug.Log("disposed");
                 TryDestroyImmediate(m_editor);
             }
 
