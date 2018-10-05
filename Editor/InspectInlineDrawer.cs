@@ -14,6 +14,9 @@ namespace UnityExtensions
     [CustomPropertyDrawer(typeof(InspectInlineAttribute))]
     public class InspectInlineDrawer : PropertyDrawer
     {
+        private static readonly int s_controlIdHash =
+            nameof(InspectInlineDrawer).GetHashCode();
+
         private class GUIResources
         {
             public readonly GUIStyle
@@ -109,11 +112,20 @@ namespace UnityExtensions
                     var inlineEditorRect = position;
                     inlineEditorRect.yMin += propertyRect.height;
                     inlineEditorRect.yMin += EditorGUIUtility.standardVerticalSpacing;
-                    DoInlineEditorGUI(inlineEditorRect, inlineEditor);
+                    DoInlineEditorGUI(inlineEditorRect, property, inlineEditor);
                 }
             }
 
-            EvictObsoleteInlineEditorsOnNextEditorUpdate();
+            DisposeObsoleteInlineEditorsOnNextEditorUpdate();
+        }
+
+        //----------------------------------------------------------------------
+
+        private int GetControlID(Rect position)
+        {
+            var hint = s_controlIdHash;
+            var focus = FocusType.Keyboard;
+            return GUIUtility.GetControlID(hint, focus, position);
         }
 
         //----------------------------------------------------------------------
@@ -123,33 +135,35 @@ namespace UnityExtensions
             SerializedProperty property,
             GUIContent label)
         {
-            EditorGUI.BeginChangeCheck();
             label = EditorGUI.BeginProperty(position, label, property);
 
-            var objectBeingEdited = property.serializedObject.targetObject;
-            var allowSceneObjects =
-                objectBeingEdited != null &&
-                !EditorUtility.IsPersistent(objectBeingEdited);
-
             var objectType = fieldInfo.FieldType;
-            var oldObject = property.objectReferenceValue;
-            var newObject =
+            var oldTarget = property.objectReferenceValue;
+            var newTarget =
                 EditorGUI.ObjectField(
                     position,
                     label,
-                    oldObject,
+                    oldTarget,
                     objectType,
-                    allowSceneObjects);
-
-            if (attribute.targetIsSubasset)
-                newObject = oldObject;
+                    AllowSceneObjects(property));
 
             EditorGUI.EndProperty();
-            if (EditorGUI.EndChangeCheck())
+            if (!ReferenceEquals(newTarget, oldTarget))
             {
-                property.objectReferenceValue = newObject;
+                RemoveTarget(property);
+                property.objectReferenceValue = newTarget;
                 property.isExpanded = true;
             }
+        }
+
+        //----------------------------------------------------------------------
+
+        private bool AllowSceneObjects(SerializedProperty property)
+        {
+            var objectBeingEdited = property.serializedObject.targetObject;
+            return
+                objectBeingEdited != null &&
+                !EditorUtility.IsPersistent(objectBeingEdited);
         }
 
         //----------------------------------------------------------------------
@@ -180,9 +194,11 @@ namespace UnityExtensions
             SerializedProperty property,
             bool targetExists)
         {
-            var targetIsSubasset = attribute.targetIsSubasset;
-            if (targetIsSubasset)
+            if (attribute.targetIsSubasset)
             {
+                var controlID = GetControlID(position);
+                ObjectSelector.DoGUI(controlID, property);
+
                 var buttonRect = position;
                 buttonRect.xMin = buttonRect.xMax - 16;
                 var buttonStyle = EditorStyles.label;
@@ -201,49 +217,45 @@ namespace UnityExtensions
                 if (GUI.Button(buttonRect, noLabel, buttonStyle))
                 {
                     var types = GetConcreteTypes(fieldInfo.FieldType);
-                    switch (types.Length)
-                    {
-                        case 0: break;
-                        case 1:
-                            if (targetExists)
-                                DoRemoveSubassetMenu(buttonRect, property);
-                            else
-                                AddSubasset(property, types, 0);
-                            break;
-                        default:
-                            DoAddRemoveSubassetMenu(
-                                buttonRect,
-                                property,
-                                targetExists,
-                                types);
-                            break;
-                    }
+                    ShowContextMenu(
+                        buttonRect,
+                        controlID,
+                        property,
+                        targetExists,
+                        types);
                 }
             }
         }
 
         //----------------------------------------------------------------------
 
-        private void DoAddRemoveSubassetMenu(
+        private void ShowContextMenu(
             Rect position,
+            int controlID,
             SerializedProperty property,
             bool targetExists,
             Type[] types)
         {
             var menu = new GenericMenu();
+
+            menu.AddItem(
+                new GUIContent("Browse..."),
+                on: false,
+                func: () => ShowObjectSelector(controlID, property));
+
+            menu.AddSeparator("");
+
             if (targetExists)
-            {
                 menu.AddItem(
                     new GUIContent("Remove"),
                     on: false,
-                    func: () => RemoveSubasset(property));
-            }
+                    func: () => RemoveTarget(property));
             else
-            {
                 menu.AddDisabledItem(new GUIContent("Remove"));
-            }
 
             menu.AddSeparator("");
+
+            menu.AddDisabledItem(new GUIContent("CREATE SUBASSET"));
 
             var typeIndex = 0;
             var useTypeFullName = types.Length > 16;
@@ -251,7 +263,7 @@ namespace UnityExtensions
             {
                 var menuPath =
                     useTypeFullName
-                    ? type.FullName.Replace('.','/')
+                    ? type.FullName.Replace('.', '/')
                     : type.Name;
                 var menuTypeIndex = typeIndex++;
                 menu.AddItem(
@@ -263,28 +275,207 @@ namespace UnityExtensions
             menu.DropDown(position);
         }
 
-        private void DoRemoveSubassetMenu(
-            Rect position,
+        //----------------------------------------------------------------------
+
+        private void ShowObjectSelector(
+            int controlID,
             SerializedProperty property)
         {
-            var menu = new GenericMenu();
-            menu.AddItem(
-                new GUIContent("Remove"),
-                on: false,
-                func: () => RemoveSubasset(property));
-            menu.DropDown(position);
+            var target = property.objectReferenceValue;
+            var objectType = fieldInfo.FieldType;
+            var allowSceneObjects = AllowSceneObjects(property);
+            ObjectSelector.Show(
+                controlID,
+                target,
+                objectType,
+                allowSceneObjects);
+        }
+
+        public static class ObjectSelector
+        {
+
+            public static void Show(
+                int controlID,
+                Object target,
+                Type targetType,
+                bool allowSceneObjects,
+                string searchFilter = "")
+            {
+                var objectSelector = GetObjectSelector();
+                ShowObjectSelectorInfo.Invoke(
+                    objectSelector,
+                    new object[]
+                    {
+                        target,
+                        targetType,
+                        null,
+                        allowSceneObjects
+                    });
+                SetControlID(objectSelector, controlID);
+                searchFilterInfo.SetValue(objectSelector, searchFilter, null);
+            }
+
+            //------------------------------------------------------------------
+
+            public const string
+            ObjectSelectorClosedCommand = "ObjectSelectorClosed",
+            ObjectSelectorUpdatedCommand = "ObjectSelectorUpdated";
+
+            public static void DoGUI(
+                int controlID,
+                SerializedProperty property)
+            {
+                var @event = Event.current;
+                if (@event.type != EventType.ExecuteCommand)
+                    return;
+
+                var objectSelector = GetObjectSelector();
+                if (objectSelector == null)
+                    return;
+
+                if (GetControlID(objectSelector) != controlID)
+                    return;
+
+                switch (@event.commandName)
+                {
+                    case ObjectSelectorClosedCommand:
+                    case ObjectSelectorUpdatedCommand:
+                        Event.current.Use();
+                        AssignSelectedObject(objectSelector, property);
+                        break;
+                }
+            }
+
+            //------------------------------------------------------------------
+
+            private static void AssignSelectedObject(
+                Object objectSelector,
+                SerializedProperty property)
+            {
+                var newInstanceID = GetSelectedInstanceID(objectSelector);
+                if (newInstanceID == 0)
+                    return; // user canceled object selection
+
+                var oldInstanceID = property.objectReferenceInstanceIDValue;
+                if (oldInstanceID != newInstanceID)
+                {
+                    property.objectReferenceInstanceIDValue = newInstanceID;
+                    GUI.changed = true;
+                }
+            }
+
+            //------------------------------------------------------------------
+
+            private static readonly Type
+            ObjectSelectorType = 
+                typeof(EditorGUI)
+                .Assembly
+                .GetType("UnityEditor.ObjectSelector");
+
+            private static readonly Func<Object>
+            GetObjectSelector =
+                (Func<Object>)
+                System
+                .Delegate
+                .CreateDelegate(
+                    typeof(Func<Object>), null,
+                    ObjectSelectorType
+                    .GetProperty("get")
+                    .GetGetMethod());
+
+            //------------------------------------------------------------------
+
+            private static readonly FieldInfo
+            objectSelectorIDInfo =
+                ObjectSelectorType.GetField(
+                    "objectSelectorID",
+                    BindingFlags.Instance |
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic);
+
+            private static int GetControlID(Object objectSelector)
+            {
+                return (int)objectSelectorIDInfo.GetValue(objectSelector);
+            }
+
+            private static void SetControlID(
+                Object objectSelector,
+                int controlID)
+            {
+                objectSelectorIDInfo.SetValue(objectSelector, controlID);
+            }
+
+            //------------------------------------------------------------------
+
+            private static readonly MethodInfo
+            getSelectedInstanceIDInfo =
+                ObjectSelectorType
+                .GetMethod(
+                    "GetSelectedInstanceID",
+                    BindingFlags.Instance |
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic);
+
+            private static int GetSelectedInstanceID(Object objectSelector)
+            {
+                return
+                    (int)
+                    getSelectedInstanceIDInfo
+                    .Invoke(objectSelector, null);
+            }
+
+            private static Object GetSelectedObject(Object objectSelector)
+            {
+                int instanceID = GetSelectedInstanceID(objectSelector);
+                return EditorUtility.InstanceIDToObject(instanceID);
+            }
+
+            //------------------------------------------------------------------
+
+            private static readonly PropertyInfo
+            searchFilterInfo =
+                ObjectSelectorType
+                .GetProperty(
+                    "searchFilter",
+                    BindingFlags.Instance |
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic);
+
+            private delegate void
+            ShowObjectSelectorDelegate(
+                Object obj,
+                Type requiredType,
+                SerializedProperty property,
+                bool allowSceneObjects);
+
+            private static readonly MethodInfo
+            ShowObjectSelectorInfo =
+                ObjectSelectorType
+                .GetMethod(
+                    "Show",
+                    new Type[]
+                    {
+                        typeof(Object),
+                        typeof(Type),
+                        typeof(SerializedProperty),
+                        typeof(bool)
+                    });
+
         }
 
         //----------------------------------------------------------------------
 
-        private void DoInlineEditorGUI(Rect position, InlineEditor inlineEditor)
+        private void DoInlineEditorGUI(
+            Rect position,
+            SerializedProperty property,
+            InlineEditor inlineEditor)
         {
             var inlineEditorHeight = inlineEditor.GetHeight();
             GUILayoutUtility.GetRect(0, -inlineEditorHeight);
-            var disabled =
-                !attribute.canEditRemoteTarget &&
-                !attribute.targetIsSubasset;
-            EditorGUI.BeginDisabledGroup(disabled);
+            var canEditTarget =
+                attribute.canEditRemoteTarget ||
+                TargetIsSubassetOf(property);
+            EditorGUI.BeginDisabledGroup(!canEditTarget);
             inlineEditor.OnGUI();
             EditorGUI.EndDisabledGroup();
         }
@@ -315,7 +506,7 @@ namespace UnityExtensions
         {
 
             private static readonly Type
-            GenericInspector =
+            GenericInspectorType =
                 typeof(Editor)
                 .Assembly
                 .GetType("UnityEditor.GenericInspector");
@@ -330,7 +521,7 @@ namespace UnityExtensions
             public InlineEditor(Editor editor)
             {
                 var editorType = editor.GetType();
-                if (editorType == GenericInspector)
+                if (editorType == GenericInspectorType)
                 {
                     var target = editor.target;
                     TryDestroyImmediate(editor);
@@ -420,7 +611,7 @@ namespace UnityExtensions
             return inlineEditor;
         }
 
-        private void EvictObsoleteInlineEditors()
+        private void DisposeObsoleteInlineEditors()
         {
             var map = m_inlineEditorMap;
             var destroyedObjects = map.Keys.Where(key => key == null);
@@ -434,10 +625,46 @@ namespace UnityExtensions
             }
         }
 
-        private void EvictObsoleteInlineEditorsOnNextEditorUpdate()
+        private void DisposeObsoleteInlineEditorsOnNextEditorUpdate()
         {
-            EditorApplication.delayCall -= EvictObsoleteInlineEditors;
-            EditorApplication.delayCall += EvictObsoleteInlineEditors;
+            EditorApplication.delayCall -= DisposeObsoleteInlineEditors;
+            EditorApplication.delayCall += DisposeObsoleteInlineEditors;
+        }
+
+        //----------------------------------------------------------------------
+
+        private static Object CreateInstance(Type type)
+        {
+            Debug.Assert(typeof(Object).IsAssignableFrom(type));
+            return
+                typeof(ScriptableObject).IsAssignableFrom(type)
+                ? ScriptableObject.CreateInstance(type)
+                : (Object)Activator.CreateInstance(type);
+        }
+
+        //----------------------------------------------------------------------
+
+        private static bool TargetIsSubassetOf(SerializedProperty property)
+        {
+            var asset = property.serializedObject.targetObject;
+            var target = property.objectReferenceValue;
+            return TargetIsSubassetOf(asset, target);
+        }
+
+        private static bool TargetIsSubassetOf(Object asset, Object target)
+        {
+            if (asset == null || target == null)
+                return false;
+
+            var assetPath = AssetDatabase.GetAssetPath(asset);
+            if (assetPath == null)
+                return false;
+
+            var targetPath = AssetDatabase.GetAssetPath(target);
+            if (targetPath == null)
+                return false;
+
+            return assetPath == targetPath;
         }
 
         //----------------------------------------------------------------------
@@ -463,19 +690,9 @@ namespace UnityExtensions
         {
             var type = types[typeIndex];
 
-            RemoveSubasset(property);
-            var serializedObject = property.serializedObject;
-            var subasset = default(Object);
+            RemoveTarget(property);
 
-            if (typeof(ScriptableObject).IsAssignableFrom(type))
-            {
-                subasset = ScriptableObject.CreateInstance(type);
-            }
-            else if (typeof(Object).IsAssignableFrom(type))
-            {
-                subasset = (Object)Activator.CreateInstance(type);
-            }
-
+            var subasset = CreateInstance(type);
             if (subasset == null)
             {
                 Debug.LogErrorFormat(
@@ -495,6 +712,7 @@ namespace UnityExtensions
 
             subasset.name = property.displayName;
 
+            var serializedObject = property.serializedObject;
             var asset = serializedObject.targetObject;
             var assetPath = AssetDatabase.GetAssetPath(asset);
             AssetDatabase.AddObjectToAsset(subasset, assetPath);
@@ -504,25 +722,26 @@ namespace UnityExtensions
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private void RemoveSubasset(SerializedProperty property)
+        //----------------------------------------------------------------------
+
+        private void RemoveTarget(SerializedProperty property)
         {
             var serializedObject = property.serializedObject;
             var asset = serializedObject.targetObject;
-            var subasset = property.objectReferenceValue;
-            if (subasset != null)
+            var target = property.objectReferenceValue;
+            if (target != null)
             {
                 property.objectReferenceValue = null;
-                var assetPath = AssetDatabase.GetAssetPath(asset);
-                var subassetPath = AssetDatabase.GetAssetPath(subasset);
-                var isSubasset = subassetPath == assetPath;
-                if (isSubasset)
+                if (TargetIsSubassetOf(asset, target))
                 {
-                    TryDestroyImmediate(subasset, allowDestroyingAssets: true);
+                    TryDestroyImmediate(target, allowDestroyingAssets: true);
                     // TODO: recursively destroy subassets
                 }
             }
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+
+        //----------------------------------------------------------------------
 
         private static void TryDestroyImmediate(
             Object obj,
