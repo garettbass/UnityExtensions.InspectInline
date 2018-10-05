@@ -331,16 +331,22 @@ namespace UnityExtensions
         {
             public override void OnInspectorGUI()
             {
-                try {
-                    var obj = serializedObject;
-                    obj.Update();
+                serializedObject.Update();
 
-                    var property = obj.GetIterator();
-                    if (property.NextVisible(enterChildren: true))
-                        while (property.NextVisible(enterChildren: false))
-                            EditorGUILayout.PropertyField(property, true);
+                var property = serializedObject.GetIterator();
+                if (property.NextVisible(enterChildren: true))
+                    while (property.NextVisible(enterChildren: false))
+                        TryPropertyField(property);
 
-                    obj.ApplyModifiedProperties();
+                serializedObject.ApplyModifiedProperties();
+            }
+
+            private static void TryPropertyField(SerializedProperty property)
+            {
+                try
+                {
+                    EditorGUILayout
+                    .PropertyField(property, includeChildren: true);
                 }
                 catch (Exception ex)
                 {
@@ -614,7 +620,7 @@ namespace UnityExtensions
 
         private struct ObjectScope : IDisposable
         {
-            private static readonly HashSet<int> s_objectScopeSet = 
+            private static readonly HashSet<int> s_objectScopeSet =
                 new HashSet<int>();
 
             private readonly int m_instanceID;
