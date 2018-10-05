@@ -9,7 +9,7 @@ namespace UnityExtensions
     {
         public bool canEditRemoteTarget;
 
-        public bool targetIsSubasset;
+        public bool canCreateSubasset;
     }
 
 }

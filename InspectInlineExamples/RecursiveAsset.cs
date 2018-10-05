@@ -9,7 +9,7 @@ namespace UnityExtensions.InspectInlineExamples
     public class RecursiveAsset : ScriptableObject
     {
 
-        [InspectInline(targetIsSubasset = true)]
+        [InspectInline(canCreateSubasset = true)]
         public RecursiveAsset child;
 
     }

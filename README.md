@@ -12,7 +12,7 @@ Apply the `InspectInlineAttribute` to member variables that reference objects de
 
 * `bool canEditRemoteTarget` - Enable inline editing of the referenced object even if it resides in a different asset file.
 
-* `bool targetIsSubasset` - Directs the `InspectInlineDrawer` to embed the referenced object as a subasset in the same asset file.
+* `bool canCreateSubasset` - Directs the `InspectInlineDrawer` to embed the referenced object as a subasset in the same asset file.
 
 ```cs
     public class SampleAsset : ScriptableObject
@@ -21,10 +21,10 @@ Apply the `InspectInlineAttribute` to member variables that reference objects de
         [InspectInline(canEditRemoteTarget = true)]
         public SampleSubasset remoteTarget;
 
-        [InspectInline(targetIsSubasset = true)]
+        [InspectInline(canCreateSubasset = true)]
         public SampleSubassetWithVectorAndColorValues concreteSubasset;
 
-        [InspectInline(targetIsSubasset = true)]
+        [InspectInline(canCreateSubasset = true)]
         public SampleSubasset polymorphicSubasset;
 
     }

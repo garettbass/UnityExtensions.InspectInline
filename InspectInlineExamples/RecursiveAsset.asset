@@ -11,20 +11,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 079f2a815a14645fc9857256faceca82, type: 3}
   m_Name: RecursiveAsset
   m_EditorClassIdentifier: 
-  child: {fileID: 114129626976074730}
---- !u!114 &114129626976074730
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 079f2a815a14645fc9857256faceca82, type: 3}
-  m_Name: Child
-  m_EditorClassIdentifier: 
-  child: {fileID: 114502735763169236}
---- !u!114 &114150763841812610
+  child: {fileID: 114013659779248540}
+--- !u!114 &114013659779248540
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
@@ -36,27 +24,3 @@ MonoBehaviour:
   m_Name: Child
   m_EditorClassIdentifier: 
   child: {fileID: 0}
---- !u!114 &114502735763169236
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 079f2a815a14645fc9857256faceca82, type: 3}
-  m_Name: Child
-  m_EditorClassIdentifier: 
-  child: {fileID: 114760287002541552}
---- !u!114 &114760287002541552
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 079f2a815a14645fc9857256faceca82, type: 3}
-  m_Name: Child
-  m_EditorClassIdentifier: 
-  child: {fileID: 114150763841812610}

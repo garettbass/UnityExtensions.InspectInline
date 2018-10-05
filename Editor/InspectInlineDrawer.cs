@@ -21,6 +21,11 @@ namespace UnityExtensions
         {
             public readonly GUIStyle
             inDropDownStyle = new GUIStyle("IN DropDown");
+
+            public readonly GUIContent
+            selectContent = new GUIContent("Select..."),
+            createSubassetContent = new GUIContent("CREATE SUBASSET"),
+            deleteSubassetContent = new GUIContent("Delete Subasset");
         }
 
         private static GUIResources s_gui;
@@ -81,10 +86,17 @@ namespace UnityExtensions
             var height = EditorGUIUtility.singleLineHeight;
             if (property.isExpanded)
             {
-                var inlineEditor = GetInlineEditor(property);
-                if (inlineEditor != null)
+                var serializedObject = property.serializedObject;
+                var asset = serializedObject.targetObject;
+                var target = property.objectReferenceValue;
+                var targetExists = target != null;
+                using (new ObjectScope(asset))
                 {
-                    height += inlineEditor.GetHeight();
+                    if (targetExists && !ObjectScope.Contains(target))
+                    {
+                        var inlineEditor = GetInlineEditor(target);
+                        height += inlineEditor.GetHeight();
+                    }
                 }
             }
             return height;
@@ -98,21 +110,24 @@ namespace UnityExtensions
             var propertyRect = position;
             propertyRect.height = EditorGUIUtility.singleLineHeight;
 
-            var inlineEditor = GetInlineEditor(property);
-            var targetExists = inlineEditor != null;
+            var target = property.objectReferenceValue;
+            var targetExists = target != null;
 
-            DoButtonGUI(propertyRect, property, targetExists);
+            DoContextMenuGUI(propertyRect, property, targetExists);
             DoObjectFieldGUI(propertyRect, property, label);
             DoFoldoutGUI(propertyRect, property, targetExists);
 
-            if (targetExists)
+            if (property.isExpanded)
             {
-                if (property.isExpanded)
+                var serializedObject = property.serializedObject;
+                var asset = serializedObject.targetObject;
+                using (new ObjectScope(asset))
                 {
-                    var inlineEditorRect = position;
-                    inlineEditorRect.yMin += propertyRect.height;
-                    inlineEditorRect.yMin += EditorGUIUtility.standardVerticalSpacing;
-                    DoInlineEditorGUI(inlineEditorRect, property, inlineEditor);
+                    if (targetExists && !ObjectScope.Contains(target))
+                    {
+                        var inlineEditor = GetInlineEditor(target);
+                        DoInlineEditorGUI(property, inlineEditor);
+                    }
                 }
             }
 
@@ -126,6 +141,54 @@ namespace UnityExtensions
             var hint = s_controlIdHash;
             var focus = FocusType.Keyboard;
             return GUIUtility.GetControlID(hint, focus, position);
+        }
+
+        //----------------------------------------------------------------------
+
+        private void DoContextMenuGUI(
+            Rect position,
+            SerializedProperty property,
+            bool targetExists)
+        {
+            if (attribute.canCreateSubasset == false)
+                return;
+
+            var controlID = GetControlID(position);
+            ObjectSelector.DoGUI(controlID, property);
+
+            var buttonRect = position;
+            buttonRect.xMin = buttonRect.xMax - 16;
+            var buttonStyle = EditorStyles.label;
+
+            var isRepaint = Event.current.type == EventType.Repaint;
+            if (isRepaint)
+            {
+                var dropDownStyle = gui.inDropDownStyle;
+                var rect = buttonRect;
+                rect.x += 2;
+                rect.y += 6;
+                dropDownStyle.Draw(rect, false, false, false, false);
+            }
+
+            var noLabel = GUIContent.none;
+            if (GUI.Button(buttonRect, noLabel, buttonStyle))
+            {
+                var types = GetConcreteTypes(fieldInfo.FieldType);
+                ShowContextMenu(
+                    buttonRect,
+                    controlID,
+                    property,
+                    targetExists,
+                    types);
+            }
+        }
+
+        //----------------------------------------------------------------------
+
+        private bool AllowSceneObjects(SerializedProperty property)
+        {
+            var asset = property.serializedObject.targetObject;
+            return asset != null && !EditorUtility.IsPersistent(asset);
         }
 
         //----------------------------------------------------------------------
@@ -158,16 +221,6 @@ namespace UnityExtensions
 
         //----------------------------------------------------------------------
 
-        private bool AllowSceneObjects(SerializedProperty property)
-        {
-            var objectBeingEdited = property.serializedObject.targetObject;
-            return
-                objectBeingEdited != null &&
-                !EditorUtility.IsPersistent(objectBeingEdited);
-        }
-
-        //----------------------------------------------------------------------
-
         private void DoFoldoutGUI(
             Rect position,
             SerializedProperty property,
@@ -189,46 +242,6 @@ namespace UnityExtensions
 
         //----------------------------------------------------------------------
 
-        private void DoButtonGUI(
-            Rect position,
-            SerializedProperty property,
-            bool targetExists)
-        {
-            if (attribute.targetIsSubasset)
-            {
-                var controlID = GetControlID(position);
-                ObjectSelector.DoGUI(controlID, property);
-
-                var buttonRect = position;
-                buttonRect.xMin = buttonRect.xMax - 16;
-                var buttonStyle = EditorStyles.label;
-
-                var isRepaint = Event.current.type == EventType.Repaint;
-                if (isRepaint)
-                {
-                    var dropDownStyle = gui.inDropDownStyle;
-                    var rect = buttonRect;
-                    rect.x += 2;
-                    rect.y += 6;
-                    dropDownStyle.Draw(rect, false, false, false, false);
-                }
-
-                var noLabel = GUIContent.none;
-                if (GUI.Button(buttonRect, noLabel, buttonStyle))
-                {
-                    var types = GetConcreteTypes(fieldInfo.FieldType);
-                    ShowContextMenu(
-                        buttonRect,
-                        controlID,
-                        property,
-                        targetExists,
-                        types);
-                }
-            }
-        }
-
-        //----------------------------------------------------------------------
-
         private void ShowContextMenu(
             Rect position,
             int controlID,
@@ -239,39 +252,43 @@ namespace UnityExtensions
             var menu = new GenericMenu();
 
             menu.AddItem(
-                new GUIContent("Browse..."),
+                gui.selectContent,
                 on: false,
                 func: () => ShowObjectSelector(controlID, property));
 
             menu.AddSeparator("");
 
-            if (targetExists)
+            if (targetExists && TargetIsSubassetOf(property))
                 menu.AddItem(
-                    new GUIContent("Remove"),
+                    gui.deleteSubassetContent,
                     on: false,
                     func: () => RemoveTarget(property));
             else
-                menu.AddDisabledItem(new GUIContent("Remove"));
+                menu.AddDisabledItem(gui.deleteSubassetContent);
 
-            menu.AddSeparator("");
-
-            menu.AddDisabledItem(new GUIContent("CREATE SUBASSET"));
-
-            var typeIndex = 0;
-            var useTypeFullName = types.Length > 16;
-            foreach (var type in types)
+            if (types.Length > 0)
             {
-                var menuPath =
-                    useTypeFullName
-                    ? type.FullName.Replace('.', '/')
-                    : type.Name;
-                var menuTypeIndex = typeIndex++;
-                menu.AddItem(
-                    new GUIContent(menuPath),
-                    on: false,
-                    func: () =>
-                        AddSubasset(property, types, menuTypeIndex));
+                menu.AddSeparator("");
+
+                menu.AddDisabledItem(gui.createSubassetContent);
+
+                var typeIndex = 0;
+                var useTypeFullName = types.Length > 16;
+                foreach (var type in types)
+                {
+                    var menuPath =
+                        useTypeFullName
+                        ? type.FullName.Replace('.', '/')
+                        : type.Name;
+                    var menuTypeIndex = typeIndex++;
+                    menu.AddItem(
+                        new GUIContent(menuPath),
+                        on: false,
+                        func: () =>
+                            AddSubasset(property, types, menuTypeIndex));
+                }
             }
+
             menu.DropDown(position);
         }
 
@@ -288,185 +305,13 @@ namespace UnityExtensions
                 controlID,
                 target,
                 objectType,
+                property,
                 allowSceneObjects);
-        }
-
-        public static class ObjectSelector
-        {
-
-            public static void Show(
-                int controlID,
-                Object target,
-                Type targetType,
-                bool allowSceneObjects,
-                string searchFilter = "")
-            {
-                var objectSelector = GetObjectSelector();
-                ShowObjectSelectorInfo.Invoke(
-                    objectSelector,
-                    new object[]
-                    {
-                        target,
-                        targetType,
-                        null,
-                        allowSceneObjects
-                    });
-                SetControlID(objectSelector, controlID);
-                searchFilterInfo.SetValue(objectSelector, searchFilter, null);
-            }
-
-            //------------------------------------------------------------------
-
-            public const string
-            ObjectSelectorClosedCommand = "ObjectSelectorClosed",
-            ObjectSelectorUpdatedCommand = "ObjectSelectorUpdated";
-
-            public static void DoGUI(
-                int controlID,
-                SerializedProperty property)
-            {
-                var @event = Event.current;
-                if (@event.type != EventType.ExecuteCommand)
-                    return;
-
-                var objectSelector = GetObjectSelector();
-                if (objectSelector == null)
-                    return;
-
-                if (GetControlID(objectSelector) != controlID)
-                    return;
-
-                switch (@event.commandName)
-                {
-                    case ObjectSelectorClosedCommand:
-                    case ObjectSelectorUpdatedCommand:
-                        Event.current.Use();
-                        AssignSelectedObject(objectSelector, property);
-                        break;
-                }
-            }
-
-            //------------------------------------------------------------------
-
-            private static void AssignSelectedObject(
-                Object objectSelector,
-                SerializedProperty property)
-            {
-                var newInstanceID = GetSelectedInstanceID(objectSelector);
-                if (newInstanceID == 0)
-                    return; // user canceled object selection
-
-                var oldInstanceID = property.objectReferenceInstanceIDValue;
-                if (oldInstanceID != newInstanceID)
-                {
-                    property.objectReferenceInstanceIDValue = newInstanceID;
-                    GUI.changed = true;
-                }
-            }
-
-            //------------------------------------------------------------------
-
-            private static readonly Type
-            ObjectSelectorType = 
-                typeof(EditorGUI)
-                .Assembly
-                .GetType("UnityEditor.ObjectSelector");
-
-            private static readonly Func<Object>
-            GetObjectSelector =
-                (Func<Object>)
-                System
-                .Delegate
-                .CreateDelegate(
-                    typeof(Func<Object>), null,
-                    ObjectSelectorType
-                    .GetProperty("get")
-                    .GetGetMethod());
-
-            //------------------------------------------------------------------
-
-            private static readonly FieldInfo
-            objectSelectorIDInfo =
-                ObjectSelectorType.GetField(
-                    "objectSelectorID",
-                    BindingFlags.Instance |
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic);
-
-            private static int GetControlID(Object objectSelector)
-            {
-                return (int)objectSelectorIDInfo.GetValue(objectSelector);
-            }
-
-            private static void SetControlID(
-                Object objectSelector,
-                int controlID)
-            {
-                objectSelectorIDInfo.SetValue(objectSelector, controlID);
-            }
-
-            //------------------------------------------------------------------
-
-            private static readonly MethodInfo
-            getSelectedInstanceIDInfo =
-                ObjectSelectorType
-                .GetMethod(
-                    "GetSelectedInstanceID",
-                    BindingFlags.Instance |
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic);
-
-            private static int GetSelectedInstanceID(Object objectSelector)
-            {
-                return
-                    (int)
-                    getSelectedInstanceIDInfo
-                    .Invoke(objectSelector, null);
-            }
-
-            private static Object GetSelectedObject(Object objectSelector)
-            {
-                int instanceID = GetSelectedInstanceID(objectSelector);
-                return EditorUtility.InstanceIDToObject(instanceID);
-            }
-
-            //------------------------------------------------------------------
-
-            private static readonly PropertyInfo
-            searchFilterInfo =
-                ObjectSelectorType
-                .GetProperty(
-                    "searchFilter",
-                    BindingFlags.Instance |
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic);
-
-            private delegate void
-            ShowObjectSelectorDelegate(
-                Object obj,
-                Type requiredType,
-                SerializedProperty property,
-                bool allowSceneObjects);
-
-            private static readonly MethodInfo
-            ShowObjectSelectorInfo =
-                ObjectSelectorType
-                .GetMethod(
-                    "Show",
-                    new Type[]
-                    {
-                        typeof(Object),
-                        typeof(Type),
-                        typeof(SerializedProperty),
-                        typeof(bool)
-                    });
-
         }
 
         //----------------------------------------------------------------------
 
         private void DoInlineEditorGUI(
-            Rect position,
             SerializedProperty property,
             InlineEditor inlineEditor)
         {
@@ -486,17 +331,21 @@ namespace UnityExtensions
         {
             public override void OnInspectorGUI()
             {
-                EditorGUI.BeginChangeCheck();
-                var obj = serializedObject;
-                obj.Update();
+                try {
+                    var obj = serializedObject;
+                    obj.Update();
 
-                var property = obj.GetIterator();
-                if (property.NextVisible(enterChildren: true))
-                    while (property.NextVisible(enterChildren: false))
-                        EditorGUILayout.PropertyField(property, true);
+                    var property = obj.GetIterator();
+                    if (property.NextVisible(enterChildren: true))
+                        while (property.NextVisible(enterChildren: false))
+                            EditorGUILayout.PropertyField(property, true);
 
-                obj.ApplyModifiedProperties();
-                EditorGUI.EndChangeCheck();
+                    obj.ApplyModifiedProperties();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                }
             }
         }
 
@@ -589,15 +438,9 @@ namespace UnityExtensions
         private readonly Dictionary<Object, InlineEditor>
         m_inlineEditorMap = new Dictionary<Object, InlineEditor>();
 
-        private InlineEditor GetInlineEditor(SerializedProperty property)
+        private InlineEditor GetInlineEditor(Object target)
         {
-            if (property.propertyType != SerializedPropertyType.ObjectReference)
-                return null;
-
-            var target = property.objectReferenceValue;
-            if (target == null)
-                return null;
-
+            Debug.Assert(target != null);
             var inlineEditor = default(InlineEditor);
             if (m_inlineEditorMap.TryGetValue(target, out inlineEditor))
                 return inlineEditor;
@@ -646,25 +489,34 @@ namespace UnityExtensions
 
         private static bool TargetIsSubassetOf(SerializedProperty property)
         {
-            var asset = property.serializedObject.targetObject;
+            var serializedObject = property.serializedObject;
+            var asset = serializedObject.targetObject;
             var target = property.objectReferenceValue;
             return TargetIsSubassetOf(asset, target);
         }
 
-        private static bool TargetIsSubassetOf(Object asset, Object target)
+        private static bool TargetIsSubassetOf(
+            Object asset,
+            Object target)
         {
-            if (asset == null || target == null)
+            if (asset == null)
                 return false;
 
-            var assetPath = AssetDatabase.GetAssetPath(asset);
-            if (assetPath == null)
+            if (asset == target)
+                return false;
+
+            if (target == null)
+                return false;
+
+            var objectPath = AssetDatabase.GetAssetPath(asset);
+            if (objectPath == null)
                 return false;
 
             var targetPath = AssetDatabase.GetAssetPath(target);
             if (targetPath == null)
                 return false;
 
-            return assetPath == targetPath;
+            return objectPath == targetPath;
         }
 
         //----------------------------------------------------------------------
@@ -755,6 +607,34 @@ namespace UnityExtensions
             catch (Exception ex)
             {
                 Debug.LogException(ex);
+            }
+        }
+
+        //----------------------------------------------------------------------
+
+        private struct ObjectScope : IDisposable
+        {
+            private static readonly HashSet<int> s_objectScopeSet = 
+                new HashSet<int>();
+
+            private readonly int m_instanceID;
+
+            public ObjectScope(Object obj)
+            {
+                m_instanceID = obj.GetInstanceID();
+                s_objectScopeSet.Add(m_instanceID);
+            }
+
+            public void Dispose()
+            {
+                s_objectScopeSet.Remove(m_instanceID);
+            }
+
+            public static bool Contains(Object obj)
+            {
+                Debug.Assert(obj != null);
+                var instanceID = obj.GetInstanceID();
+                return s_objectScopeSet.Contains(instanceID);
             }
         }
 
