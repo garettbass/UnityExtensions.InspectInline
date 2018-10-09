@@ -94,8 +94,10 @@ namespace UnityExtensions
                 {
                     if (targetExists && !ObjectScope.Contains(target))
                     {
-                        var inlineEditor = GetInlineEditor(target);
-                        height += inlineEditor.GetHeight();
+                        var spacing = EditorGUIUtility.standardVerticalSpacing;
+                        height += spacing;
+                        height += GetInlinePropertyHeight(target);
+                        height += 1;
                     }
                 }
             }
@@ -125,13 +127,17 @@ namespace UnityExtensions
                 {
                     if (targetExists && !ObjectScope.Contains(target))
                     {
-                        var inlineEditor = GetInlineEditor(target);
-                        DoInlineEditorGUI(property, inlineEditor);
+                        var inlineRect = position;
+                        inlineRect.yMin = propertyRect.yMax;
+                        var spacing = EditorGUIUtility.standardVerticalSpacing;
+                        inlineRect.yMin += spacing;
+                        inlineRect.yMax -= 1;
+                        DoInlinePropertyGUI(inlineRect, target);
                     }
                 }
             }
 
-            DisposeObsoleteInlineEditorsOnNextEditorUpdate();
+            DiscardObsoleteInlineEditorsOnNextEditorUpdate();
         }
 
         //----------------------------------------------------------------------
@@ -311,173 +317,117 @@ namespace UnityExtensions
 
         //----------------------------------------------------------------------
 
-        private void DoInlineEditorGUI(
-            SerializedProperty property,
-            InlineEditor inlineEditor)
+        private float GetInlinePropertyHeight(Object target)
         {
-            var inlineEditorHeight = inlineEditor.GetHeight();
-            GUILayoutUtility.GetRect(0, -inlineEditorHeight);
-            var canEditTarget =
-                attribute.canEditRemoteTarget ||
-                TargetIsSubassetOf(property);
-            EditorGUI.BeginDisabledGroup(!canEditTarget);
-            inlineEditor.OnGUI();
-            EditorGUI.EndDisabledGroup();
+            var serializedObject = GetSerializedObject(target);
+            var height = 2f;
+            var spacing = EditorGUIUtility.standardVerticalSpacing;
+            var properties = EnumerateChildProperties(serializedObject);
+            foreach (var property in properties)
+            {
+                height += spacing;
+                height +=
+                    EditorGUI
+                    .GetPropertyHeight(property, includeChildren: true);
+            }
+            if (height > 0)
+                height += spacing;
+            return height;
+        }
+
+        private void DoInlinePropertyGUI(Rect position, Object target)
+        {
+            var serializedObject = GetSerializedObject(target);
+            DrawInlineBackground(position);
+            var spacing = EditorGUIUtility.standardVerticalSpacing;
+            var properties = EnumerateChildProperties(serializedObject);
+            position.xMin += 14;
+            position.xMax -= 3;
+            position.yMin += 1;
+            position.yMax -= 1;
+            foreach (var property in properties)
+            {
+                position.y += spacing;
+                position.height =
+                    EditorGUI
+                    .GetPropertyHeight(property, includeChildren: true);
+                EditorGUI
+                .PropertyField(position, property, includeChildren: true);
+                position.y += position.height;
+            }
+        }
+
+        private static void DrawInlineBackground(Rect position)
+        {
+            var isRepaint = Event.current.type == EventType.Repaint;
+            if (isRepaint)
+            {
+                var style = new GUIStyle("TL SelectionButton");
+                style.Draw(position, false, false, false, false);
+
+                // increase the contrast of the bottom edge background
+                var shadowRect = position;
+                shadowRect.yMin = shadowRect.yMax - 2;
+                shadowRect.xMin += 2;
+                shadowRect.xMax -= 2;
+                EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
+                shadowRect.y += 1;
+                EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
+                shadowRect.xMin += 1;
+                shadowRect.xMax -= 1;
+                shadowRect.y += 1;
+                EditorGUI.DrawRect(shadowRect, new Color(1, 1, 1, 0.025f));
+            }
+        }
+
+        private static IEnumerable<SerializedProperty>
+        EnumerateChildProperties(SerializedObject serializedObject)
+        {
+            var property = serializedObject.GetIterator();
+            if (property.NextVisible(enterChildren: true))
+            {
+                // yield return property; // skip "m_Script"
+                while (property.NextVisible(enterChildren: false))
+                {
+                    yield return property;
+                }
+            }
         }
 
         //----------------------------------------------------------------------
 
-        private class NoScriptPropertyEditor : Editor
-        {
-            public override void OnInspectorGUI()
-            {
-                serializedObject.Update();
+        private readonly Dictionary<Object, SerializedObject>
+        m_serializedObjectMap = new Dictionary<Object, SerializedObject>();
 
-                var property = serializedObject.GetIterator();
-                if (property.NextVisible(enterChildren: true))
-                    while (property.NextVisible(enterChildren: false))
-                        TryPropertyField(property);
-
-                serializedObject.ApplyModifiedProperties();
-            }
-
-            private static void TryPropertyField(SerializedProperty property)
-            {
-                try
-                {
-                    EditorGUILayout
-                    .PropertyField(property, includeChildren: true);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-            }
-        }
-
-        //----------------------------------------------------------------------
-
-        private class InlineEditor : IDisposable
-        {
-
-            private static readonly Type
-            GenericInspectorType =
-                typeof(Editor)
-                .Assembly
-                .GetType("UnityEditor.GenericInspector");
-
-            private readonly GUIStyle
-            inlineBackgroundStyle = new GUIStyle("TL SelectionButton");
-
-            private readonly Editor m_editor;
-
-            private float m_height;
-
-            public InlineEditor(Editor editor)
-            {
-                var editorType = editor.GetType();
-                if (editorType == GenericInspectorType)
-                {
-                    var target = editor.target;
-                    TryDestroyImmediate(editor);
-                    Editor.CreateCachedEditor(
-                        target,
-                        typeof(NoScriptPropertyEditor),
-                        ref editor);
-                }
-                m_editor = editor;
-            }
-
-            public void Dispose()
-            {
-                TryDestroyImmediate(m_editor);
-            }
-
-            public float GetHeight()
-            {
-                return m_height;
-            }
-
-            public void OnGUI()
-            {
-                try
-                {
-                    EditorGUILayout.BeginVertical(inlineBackgroundStyle);
-                    EditorGUI.indentLevel += 1;
-
-                    var rectBefore = GUILayoutUtility.GetRect(0, 2);
-
-                    m_editor.OnInspectorGUI();
-
-                    var rectAfter = GUILayoutUtility.GetRect(0, 1);
-                    GUILayoutUtility.GetRect(0, -1);
-
-                    m_height = rectAfter.yMax - rectBefore.yMin;
-
-                    // increase the contrast of the bottom edge background
-                    var shadowRect = rectAfter;
-                    shadowRect.xMin += 2;
-                    shadowRect.xMax -= 2;
-                    EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
-                    shadowRect.y += 1;
-                    EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
-                    shadowRect.xMin += 1;
-                    shadowRect.xMax -= 1;
-                    shadowRect.y += 1;
-                    EditorGUI.DrawRect(shadowRect, new Color(1, 1, 1, 0.025f));
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
-                finally
-                {
-                    EditorGUI.indentLevel -= 1;
-                    EditorGUILayout.EndVertical();
-                }
-            }
-
-        }
-
-        //----------------------------------------------------------------------
-
-        private readonly Dictionary<Object, InlineEditor>
-        m_inlineEditorMap = new Dictionary<Object, InlineEditor>();
-
-        private InlineEditor GetInlineEditor(Object target)
+        private SerializedObject GetSerializedObject(Object target)
         {
             Debug.Assert(target != null);
-            var inlineEditor = default(InlineEditor);
-            if (m_inlineEditorMap.TryGetValue(target, out inlineEditor))
-                return inlineEditor;
+            var serializedObject = default(SerializedObject);
+            if (m_serializedObjectMap.TryGetValue(target, out serializedObject))
+                return serializedObject;
 
-            var editor = default(Editor);
-            Editor.CreateCachedEditor(target, null, ref editor);
-            Debug.Assert(!ReferenceEquals(editor, null));
-            Debug.Assert(editor != null);
-            inlineEditor = new InlineEditor(editor);
-            m_inlineEditorMap.Add(target, inlineEditor);
-            return inlineEditor;
+            serializedObject = new SerializedObject(target);
+            m_serializedObjectMap.Add(target, serializedObject);
+            return serializedObject;
         }
 
-        private void DisposeObsoleteInlineEditors()
+        private void DiscardObsoleteSerializedObjects()
         {
-            var map = m_inlineEditorMap;
+            var map = m_serializedObjectMap;
             var destroyedObjects = map.Keys.Where(key => key == null);
             if (destroyedObjects.Any())
             {
                 foreach (var @object in destroyedObjects.ToArray())
                 {
-                    map[@object].Dispose();
                     map.Remove(@object);
                 }
             }
         }
 
-        private void DisposeObsoleteInlineEditorsOnNextEditorUpdate()
+        private void DiscardObsoleteInlineEditorsOnNextEditorUpdate()
         {
-            EditorApplication.delayCall -= DisposeObsoleteInlineEditors;
-            EditorApplication.delayCall += DisposeObsoleteInlineEditors;
+            EditorApplication.delayCall -= DiscardObsoleteSerializedObjects;
+            EditorApplication.delayCall += DiscardObsoleteSerializedObjects;
         }
 
         //----------------------------------------------------------------------
@@ -568,7 +518,7 @@ namespace UnityExtensions
                 return;
             }
 
-            subasset.name = property.displayName;
+            subasset.name = property.propertyPath.Replace(".Array.data[","[");
 
             var serializedObject = property.serializedObject;
             var asset = serializedObject.targetObject;

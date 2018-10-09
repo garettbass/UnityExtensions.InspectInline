@@ -14,7 +14,7 @@ MonoBehaviour:
   remoteTarget: {fileID: 11400000, guid: d8f1fa1fbba2a40aaa412e07b117679e, type: 2}
   concreteSubasset: {fileID: 114931104256653876}
   polymorphicSubasset: {fileID: 114898509990034348}
-  anyScriptableObject: {fileID: 114585003028178826}
+  anyScriptableObject: {fileID: 11400000}
 --- !u!114 &114585003028178826
 MonoBehaviour:
   m_ObjectHideFlags: 0
