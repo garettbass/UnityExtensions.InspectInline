@@ -137,7 +137,7 @@ namespace UnityExtensions
                 }
             }
 
-            DiscardObsoleteInlineEditorsOnNextEditorUpdate();
+            DiscardObsoleteSerializedObjectsOnNextEditorUpdate();
         }
 
         //----------------------------------------------------------------------
@@ -160,7 +160,7 @@ namespace UnityExtensions
                 return;
 
             var controlID = GetControlID(position);
-            ObjectSelector.DoGUI(controlID, property);
+            ObjectSelector.DoGUI(controlID, property, SetObjectReferenceValue);
 
             var buttonRect = position;
             buttonRect.xMin = buttonRect.xMax - 16;
@@ -186,6 +186,25 @@ namespace UnityExtensions
                     property,
                     targetExists,
                     types);
+            }
+        }
+
+        private static void SetObjectReferenceValue(
+            SerializedProperty property,
+            Object newTarget)
+        {
+            var serializedObject = property.serializedObject;
+            var didReferenceSubassets = property.DoesReferenceSubassets();
+            property.objectReferenceValue = newTarget;
+            property.isExpanded = true;
+            if (didReferenceSubassets)
+            {
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+                serializedObject.DestroyUnreferencedSubassetsInAsset();
+            }
+            else
+            {
+                serializedObject.ApplyModifiedProperties();
             }
         }
 
@@ -219,9 +238,7 @@ namespace UnityExtensions
             EditorGUI.EndProperty();
             if (!ReferenceEquals(newTarget, oldTarget))
             {
-                RemoveTarget(property);
-                property.objectReferenceValue = newTarget;
-                property.isExpanded = true;
+                SetObjectReferenceValue(property, newTarget);
             }
         }
 
@@ -268,7 +285,7 @@ namespace UnityExtensions
                 menu.AddItem(
                     gui.deleteSubassetContent,
                     on: false,
-                    func: () => RemoveTarget(property));
+                    func: () => DestroyTarget(property));
             else
                 menu.AddDisabledItem(gui.deleteSubassetContent);
 
@@ -322,7 +339,7 @@ namespace UnityExtensions
             var serializedObject = GetSerializedObject(target);
             var height = 2f;
             var spacing = EditorGUIUtility.standardVerticalSpacing;
-            var properties = EnumerateChildProperties(serializedObject);
+            var properties = serializedObject.EnumerateChildProperties();
             foreach (var property in properties)
             {
                 height += spacing;
@@ -340,7 +357,7 @@ namespace UnityExtensions
             var serializedObject = GetSerializedObject(target);
             DrawInlineBackground(position);
             var spacing = EditorGUIUtility.standardVerticalSpacing;
-            var properties = EnumerateChildProperties(serializedObject);
+            var properties = serializedObject.EnumerateChildProperties();
             position.xMin += 14;
             position.xMax -= 3;
             position.yMin += 1;
@@ -380,20 +397,6 @@ namespace UnityExtensions
             }
         }
 
-        private static IEnumerable<SerializedProperty>
-        EnumerateChildProperties(SerializedObject serializedObject)
-        {
-            var property = serializedObject.GetIterator();
-            if (property.NextVisible(enterChildren: true))
-            {
-                // yield return property; // skip "m_Script"
-                while (property.NextVisible(enterChildren: false))
-                {
-                    yield return property;
-                }
-            }
-        }
-
         //----------------------------------------------------------------------
 
         private readonly Dictionary<Object, SerializedObject>
@@ -424,7 +427,7 @@ namespace UnityExtensions
             }
         }
 
-        private void DiscardObsoleteInlineEditorsOnNextEditorUpdate()
+        private void DiscardObsoleteSerializedObjectsOnNextEditorUpdate()
         {
             EditorApplication.delayCall -= DiscardObsoleteSerializedObjects;
             EditorApplication.delayCall += DiscardObsoleteSerializedObjects;
@@ -498,8 +501,6 @@ namespace UnityExtensions
         {
             var type = types[typeIndex];
 
-            RemoveTarget(property);
-
             var subasset = CreateInstance(type);
             if (subasset == null)
             {
@@ -514,7 +515,7 @@ namespace UnityExtensions
                 Debug.LogErrorFormat(
                     "Cannot save subasset of type {0}",
                     type.FullName);
-                TryDestroyImmediate(subasset);
+                TryDestroyImmediate(subasset, allowDestroyingAssets: true);
                 return;
             }
 
@@ -524,29 +525,18 @@ namespace UnityExtensions
             var asset = serializedObject.targetObject;
             var assetPath = AssetDatabase.GetAssetPath(asset);
             AssetDatabase.AddObjectToAsset(subasset, assetPath);
-
-            property.objectReferenceInstanceIDValue = subasset.GetInstanceID();
-            property.isExpanded = true;
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            SetObjectReferenceValue(property, subasset);
         }
 
         //----------------------------------------------------------------------
 
-        private void RemoveTarget(SerializedProperty property)
+        private void DestroyTarget(SerializedProperty property)
         {
-            var serializedObject = property.serializedObject;
-            var asset = serializedObject.targetObject;
             var target = property.objectReferenceValue;
             if (target != null)
             {
-                property.objectReferenceValue = null;
-                if (TargetIsSubassetOf(asset, target))
-                {
-                    TryDestroyImmediate(target, allowDestroyingAssets: true);
-                    // TODO: recursively destroy subassets
-                }
+                SetObjectReferenceValue(property, null);
             }
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
         //----------------------------------------------------------------------

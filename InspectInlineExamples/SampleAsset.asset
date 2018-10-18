@@ -1,20 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &11400000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 027ab74d86dd649a5a68bc2de1ba19cf, type: 3}
-  m_Name: SampleAsset
-  m_EditorClassIdentifier: 
-  remoteTarget: {fileID: 11400000, guid: d8f1fa1fbba2a40aaa412e07b117679e, type: 2}
-  concreteSubasset: {fileID: 114931104256653876}
-  polymorphicSubasset: {fileID: 114898509990034348}
-  anyScriptableObject: {fileID: 11400000}
 --- !u!114 &114585003028178826
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -24,7 +9,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 42c284bf38c954c9aac4442e46bff66e, type: 3}
-  m_Name: Any Scriptable Object
+  m_Name: SampleAsset
   m_EditorClassIdentifier: 
   intList: 010000000200000003000000
   stringArray:
@@ -33,6 +18,19 @@ MonoBehaviour:
   - c
   structArray: []
   subassetArray: []
+--- !u!114 &114834727173144344
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2594159bf33dd472592e6cc19ab28f99, type: 3}
+  m_Name: anyScriptableObject
+  m_EditorClassIdentifier: 
+  worthlessField: 0
+  anotherWorthlessField: 0
 --- !u!114 &114898509990034348
 MonoBehaviour:
   m_ObjectHideFlags: 0

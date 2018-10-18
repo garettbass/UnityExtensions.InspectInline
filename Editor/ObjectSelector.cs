@@ -83,7 +83,8 @@ namespace UnityExtensions
 
         public static void DoGUI(
             int controlID,
-            SerializedProperty property)
+            SerializedProperty property,
+            Action<SerializedProperty, Object> setObjectReferenceValue)
         {
             var @event = Event.current;
             if (@event.type != EventType.ExecuteCommand)
@@ -103,7 +104,10 @@ namespace UnityExtensions
                     break;
                 case ObjectSelectorUpdatedCommand:
                     Event.current.Use();
-                    AssignSelectedObject(objectSelector, property);
+                    AssignSelectedObject(
+                        objectSelector,
+                        property,
+                        setObjectReferenceValue);
                     break;
             }
         }
@@ -112,13 +116,15 @@ namespace UnityExtensions
 
         private static void AssignSelectedObject(
             Object objectSelector,
-            SerializedProperty property)
+            SerializedProperty property,
+            Action<SerializedProperty, Object> setObjectReferenceValue)
         {
             var newInstanceID = GetSelectedInstanceID(objectSelector);
             var oldInstanceID = property.objectReferenceInstanceIDValue;
             if (oldInstanceID != newInstanceID)
             {
-                property.objectReferenceInstanceIDValue = newInstanceID;
+                var newTarget = EditorUtility.InstanceIDToObject(newInstanceID);
+                setObjectReferenceValue(property, newTarget);
                 GUI.changed = true;
             }
         }
