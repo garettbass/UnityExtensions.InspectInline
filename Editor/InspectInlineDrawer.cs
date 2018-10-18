@@ -88,10 +88,10 @@ namespace UnityExtensions
             {
                 var serializedObject = property.serializedObject;
                 var asset = serializedObject.targetObject;
-                var target = property.objectReferenceValue;
-                var targetExists = target != null;
                 using (new ObjectScope(asset))
                 {
+                    var target = property.objectReferenceValue;
+                    var targetExists = target != null;
                     if (targetExists && !ObjectScope.Contains(target))
                     {
                         var spacing = EditorGUIUtility.standardVerticalSpacing;
@@ -112,12 +112,9 @@ namespace UnityExtensions
             var propertyRect = position;
             propertyRect.height = EditorGUIUtility.singleLineHeight;
 
-            var target = property.objectReferenceValue;
-            var targetExists = target != null;
-
-            DoContextMenuGUI(propertyRect, property, targetExists);
+            DoContextMenuGUI(propertyRect, property);
             DoObjectFieldGUI(propertyRect, property, label);
-            DoFoldoutGUI(propertyRect, property, targetExists);
+            DoFoldoutGUI(propertyRect, property);
 
             if (property.isExpanded)
             {
@@ -125,6 +122,8 @@ namespace UnityExtensions
                 var asset = serializedObject.targetObject;
                 using (new ObjectScope(asset))
                 {
+                    var target = property.objectReferenceValue;
+                    var targetExists = target != null;
                     if (targetExists && !ObjectScope.Contains(target))
                     {
                         var inlineRect = position;
@@ -153,8 +152,7 @@ namespace UnityExtensions
 
         private void DoContextMenuGUI(
             Rect position,
-            SerializedProperty property,
-            bool targetExists)
+            SerializedProperty property)
         {
             if (attribute.canCreateSubasset == false)
                 return;
@@ -184,7 +182,6 @@ namespace UnityExtensions
                     buttonRect,
                     controlID,
                     property,
-                    targetExists,
                     types);
             }
         }
@@ -194,13 +191,13 @@ namespace UnityExtensions
             Object newTarget)
         {
             var serializedObject = property.serializedObject;
-            var didReferenceSubassets = property.DoesReferenceSubassets();
+            var oldSubassets = property.FindReferencedSubassets();
             property.objectReferenceValue = newTarget;
             property.isExpanded = true;
-            if (didReferenceSubassets)
+            if (oldSubassets.Any())
             {
                 serializedObject.ApplyModifiedPropertiesWithoutUndo();
-                serializedObject.DestroyUnreferencedSubassetsInAsset();
+                serializedObject.DestroyUnreferencedSubassets(oldSubassets);
             }
             else
             {
@@ -246,12 +243,13 @@ namespace UnityExtensions
 
         private void DoFoldoutGUI(
             Rect position,
-            SerializedProperty property,
-            bool targetExists)
+            SerializedProperty property)
         {
             var foldoutRect = position;
             foldoutRect.width = EditorGUIUtility.labelWidth;
 
+            var target = property.objectReferenceValue;
+            var targetExists = target != null;
             var isExpanded = targetExists && property.isExpanded;
 
             var noLabel = GUIContent.none;
@@ -269,7 +267,6 @@ namespace UnityExtensions
             Rect position,
             int controlID,
             SerializedProperty property,
-            bool targetExists,
             Type[] types)
         {
             var menu = new GenericMenu();
@@ -281,7 +278,8 @@ namespace UnityExtensions
 
             menu.AddSeparator("");
 
-            if (targetExists && TargetIsSubassetOf(property))
+            var target = property.objectReferenceValue;
+            if (target != null && TargetIsSubassetOf(property))
                 menu.AddItem(
                     gui.deleteSubassetContent,
                     on: false,
@@ -578,7 +576,8 @@ namespace UnityExtensions
 
             public static bool Contains(Object obj)
             {
-                Debug.Assert(obj != null);
+                if (obj == null)
+                    return false;
                 var instanceID = obj.GetInstanceID();
                 return s_objectScopeSet.Contains(instanceID);
             }
