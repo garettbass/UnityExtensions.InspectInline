@@ -370,6 +370,7 @@ namespace UnityExtensions
                 .PropertyField(position, property, includeChildren: true);
                 position.y += position.height;
             }
+            serializedObject.ApplyModifiedProperties();
         }
 
         private static void DrawInlineBackground(Rect position)
