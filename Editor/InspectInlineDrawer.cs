@@ -126,12 +126,17 @@ namespace UnityExtensions
                     var targetExists = target != null;
                     if (targetExists && !ObjectScope.Contains(target))
                     {
+                        var enabled =
+                            attribute.canEditRemoteTarget ||
+                            TargetIsSubassetOf(asset, target);
                         var inlineRect = position;
                         inlineRect.yMin = propertyRect.yMax;
                         var spacing = EditorGUIUtility.standardVerticalSpacing;
+                        inlineRect.xMin += 2;
+                        inlineRect.xMax -= 18;
                         inlineRect.yMin += spacing;
                         inlineRect.yMax -= 1;
-                        DoInlinePropertyGUI(inlineRect, target);
+                        DoInlinePropertyGUI(inlineRect, target, enabled);
                     }
                 }
             }
@@ -297,8 +302,14 @@ namespace UnityExtensions
                 var useTypeFullName = types.Length > 16;
                 foreach (var type in types)
                 {
+                    var createAssetMenuAttribute =
+                        (CreateAssetMenuAttribute)
+                        type.GetCustomAttribute(
+                            typeof(CreateAssetMenuAttribute));
                     var menuPath =
-                        useTypeFullName
+                        createAssetMenuAttribute != null
+                        ? createAssetMenuAttribute.menuName
+                        : useTypeFullName
                         ? type.FullName.Replace('.', '/')
                         : type.Name;
                     var menuTypeIndex = typeIndex++;
@@ -335,6 +346,7 @@ namespace UnityExtensions
         private float GetInlinePropertyHeight(Object target)
         {
             var serializedObject = GetSerializedObject(target);
+            serializedObject.Update();
             var height = 2f;
             var spacing = EditorGUIUtility.standardVerticalSpacing;
             var properties = serializedObject.EnumerateChildProperties();
@@ -350,16 +362,21 @@ namespace UnityExtensions
             return height;
         }
 
-        private void DoInlinePropertyGUI(Rect position, Object target)
+        private void DoInlinePropertyGUI(
+            Rect position,
+            Object target,
+            bool enabled)
         {
-            var serializedObject = GetSerializedObject(target);
             DrawInlineBackground(position);
+            var serializedObject = GetSerializedObject(target);
+            serializedObject.Update();
             var spacing = EditorGUIUtility.standardVerticalSpacing;
             var properties = serializedObject.EnumerateChildProperties();
             position.xMin += 14;
-            position.xMax -= 3;
+            position.xMax -= 5;
             position.yMin += 1;
             position.yMax -= 1;
+            EditorGUI.BeginDisabledGroup(!enabled);
             foreach (var property in properties)
             {
                 position.y += spacing;
@@ -370,6 +387,11 @@ namespace UnityExtensions
                 .PropertyField(position, property, includeChildren: true);
                 position.y += position.height;
             }
+            EditorGUI.EndDisabledGroup();
+            if (enabled)
+            {
+                serializedObject.ApplyModifiedProperties();
+            }
         }
 
         private static void DrawInlineBackground(Rect position)
@@ -377,21 +399,16 @@ namespace UnityExtensions
             var isRepaint = Event.current.type == EventType.Repaint;
             if (isRepaint)
             {
-                var style = new GUIStyle("TL SelectionButton");
-                style.Draw(position, false, false, false, false);
-
-                // increase the contrast of the bottom edge background
-                var shadowRect = position;
-                shadowRect.yMin = shadowRect.yMax - 2;
-                shadowRect.xMin += 2;
-                shadowRect.xMax -= 2;
-                EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.025f));
-                shadowRect.y += 1;
-                EditorGUI.DrawRect(shadowRect, new Color(0, 0, 0, 0.075f));
-                shadowRect.xMin += 1;
-                shadowRect.xMax -= 1;
-                shadowRect.y += 1;
-                EditorGUI.DrawRect(shadowRect, new Color(1, 1, 1, 0.025f));
+                // var style = new GUIStyle("ProgressBarBack");
+                // var style = new GUIStyle("Badge");
+                // var style = new GUIStyle("HelpBox");
+                // var style = new GUIStyle("ObjectFieldThumb");
+                var style = new GUIStyle("ShurikenEffectBg");
+                using (ColorAlphaScope(0.5f))
+                {
+                    style.Draw(position, false, false, false, false);
+                }
+                // EditorGUI.DrawRect()
             }
         }
 
@@ -465,15 +482,15 @@ namespace UnityExtensions
             if (target == null)
                 return false;
 
-            var objectPath = AssetDatabase.GetAssetPath(asset);
-            if (objectPath == null)
+            var assetPath = AssetDatabase.GetAssetPath(asset);
+            if (assetPath == null)
                 return false;
 
             var targetPath = AssetDatabase.GetAssetPath(target);
             if (targetPath == null)
                 return false;
 
-            return objectPath == targetPath;
+            return assetPath == targetPath;
         }
 
         //----------------------------------------------------------------------
@@ -497,14 +514,14 @@ namespace UnityExtensions
             Type[] types,
             int typeIndex)
         {
-            var type = types[typeIndex];
+            var subassetType = types[typeIndex];
 
-            var subasset = CreateInstance(type);
+            var subasset = CreateInstance(subassetType);
             if (subasset == null)
             {
                 Debug.LogErrorFormat(
                     "Failed to create subasset of type {0}",
-                    type.FullName);
+                    subassetType.FullName);
                 return;
             }
 
@@ -512,17 +529,15 @@ namespace UnityExtensions
             {
                 Debug.LogErrorFormat(
                     "Cannot save subasset of type {0}",
-                    type.FullName);
+                    subassetType.FullName);
                 TryDestroyImmediate(subasset, allowDestroyingAssets: true);
                 return;
             }
 
-            subasset.name = property.propertyPath.Replace(".Array.data[","[");
+            subasset.name = subassetType.Name;
 
             var serializedObject = property.serializedObject;
-            var asset = serializedObject.targetObject;
-            var assetPath = AssetDatabase.GetAssetPath(asset);
-            AssetDatabase.AddObjectToAsset(subasset, assetPath);
+            serializedObject.targetObject.AddSubasset(subasset);
             SetObjectReferenceValue(property, subasset);
         }
 
@@ -583,6 +598,43 @@ namespace UnityExtensions
             }
         }
 
+        //======================================================================
+
+        protected struct Deferred : IDisposable
+        {
+            private readonly Action _onDispose;
+
+            public Deferred(Action onDispose)
+            {
+                _onDispose = onDispose;
+            }
+
+            public void Dispose()
+            {
+                if (_onDispose != null)
+                    _onDispose();
+            }
+        }
+
+        protected static Deferred ColorScope(Color newColor)
+        {
+            var oldColor = GUI.color;
+            GUI.color = newColor;
+            return new Deferred(() => GUI.color = oldColor);
+        }
+
+        protected static Deferred ColorAlphaScope(float a)
+        {
+            var oldColor = GUI.color;
+            GUI.color = new Color(1, 1, 1, a);
+            return new Deferred(() => GUI.color = oldColor);
+        }
+
+        protected static Deferred IndentLevelScope(int indent = 1)
+        {
+            EditorGUI.indentLevel += indent;
+            return new Deferred(() => EditorGUI.indentLevel -= indent);
+        }
     }
 
 }

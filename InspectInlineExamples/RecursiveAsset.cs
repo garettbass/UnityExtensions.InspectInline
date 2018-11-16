@@ -5,7 +5,7 @@ using UnityEngine;
 namespace UnityExtensions.InspectInlineExamples
 {
 
-    [CreateAssetMenu]
+    // [CreateAssetMenu]
     public class RecursiveAsset : ScriptableObject
     {
 
