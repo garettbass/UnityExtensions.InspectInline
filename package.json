@@ -1,7 +1,7 @@
 {
   "name": "garettbass.unity-extensions.inspect-in-line",
   "displayName": "UnityExtension.InspectInline",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "unity": "2018.1",
   "description": "Allow inspect in the same object member variables that reference objects derived from UnityEngine.Object (e.g. ScriptableObject, MonoBehaviour).",
   "keywords": [
