@@ -1,5 +1,5 @@
 {
-  "name": "garettbass.UnityExtensions.InspectInline",
+  "name": "garettbass.unity-extensions.inspect-in-line",
   "displayName": "UnityExtension.InspectInline",
   "version": "0.2.0",
   "unity": "2018.1",
@@ -21,6 +21,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://https://github.com/d4160/UnityExtensions.InspectInline.git"
+    "url": "https://github.com/garettbass/UnityExtensions.InspectInline.git"
   }
 }
