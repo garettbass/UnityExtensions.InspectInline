@@ -51,7 +51,18 @@ namespace UnityExtensions
                 return concreteTypes;
 
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            var types = assemblies.SelectMany(a => a.GetTypes());
+            var types = assemblies.SelectMany(
+                a => {
+                    try
+                    {
+                        return a.GetTypes();
+                    }
+                    catch (ReflectionTypeLoadException e)
+                    {
+                        return e.Types.Where(t => t != null);
+                    }
+                }
+            );
             concreteTypes =
                 types
                 .Where(t =>
@@ -228,6 +239,17 @@ namespace UnityExtensions
             label = EditorGUI.BeginProperty(position, label, property);
 
             var objectType = fieldInfo.FieldType;
+
+            /* Can also get the BaseType */
+            if (objectType.IsArray)
+            {
+                objectType = objectType.GetElementType();
+            }
+            else if (objectType.IsGenericType)
+            {
+                objectType = objectType.GenericTypeArguments[0];
+            }
+
             var oldTarget = property.objectReferenceValue;
             var newTarget =
                 EditorGUI.ObjectField(
